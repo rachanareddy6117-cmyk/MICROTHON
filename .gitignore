@@ -1,0 +1,32 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*.class
+*.so
+
+# Database & Runtime
+*.db
+*.sqlite3
+pqc_migrate.db
+sandbox_storage/
+pgdata/
+redisdata/
+
+# Environment Variables
+.env
+.env.local
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log

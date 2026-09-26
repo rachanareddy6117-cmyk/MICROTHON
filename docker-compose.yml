@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pqc_postgres
+    environment:
+      POSTGRES_USER: pqc_user
+      POSTGRES_PASSWORD: pqc_secure_password
+      POSTGRES_DB: pqc_migrate
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pqc_user -d pqc_migrate"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: pqc_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: pqc_api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://pqc_user:pqc_secure_password@postgres:5432/pqc_migrate
+      - DATABASE_SYNC_URL=postgresql://pqc_user:pqc_secure_password@postgres:5432/pqc_migrate
+      - REDIS_URL=redis://redis:6379/0
+      - APP_ENV=production
+    ports:
+      - "8000:8000"
+
+volumes:
+  pgdata:
+  redisdata:
