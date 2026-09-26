@@ -63,6 +63,9 @@ def test_pdf_ingestion_extracts_project_fields_without_executing_content():
     assert result["profile"]["scope"] == "Payments API migration"
     assert result["profile"]["technology"] == ["Java", "TLS"]
     assert result["profile"]["dependencies"] == ["Redis"]
+    assert result["report"]["cost_analysis"]["status"] == "ESTIMATED"
+    assert result["report"]["cost_analysis"]["currency"] == "USD"
+    assert result["report"]["cost_analysis"]["cost_range_usd"]["expected"] > 0
 
 
 def test_zip_scanner_reports_algorithm_evidence_and_redacts_secret_material():
@@ -93,6 +96,52 @@ def test_zip_scanner_reports_algorithm_evidence_and_redacts_secret_material():
     assert report["llm_status"]["configured"] is False
 
 
+def test_software_zip_returns_static_inventory_cost_and_never_executes_code():
+    import io
+    import zipfile
+
+    bundle = io.BytesIO()
+    with zipfile.ZipFile(bundle, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("requirements.txt", "cryptography==42.0.0\nrequests>=2.0\n")
+        archive.writestr(
+            "src/crypto.py",
+            'digest = hashlib.md5(payload)\n'
+            'key_type = "RSA-2048"\n'
+            'cipher = "AES-256-GCM"\n'
+            'private_key = "supersecretvalue"\n'
+            'raise RuntimeError("must not execute")\n',
+        )
+
+    response = client.post(
+        "/api/v1/scans/upload",
+        files={"file": ("software.zip", bundle.getvalue(), "application/zip")},
+        data={
+            "hourly_rate_usd": "200",
+            "legacy_fix_hours_per_finding": "2",
+            "quantum_migration_hours_per_finding": "4",
+            "crypto_review_hours_per_finding": "1",
+        },
+    )
+
+    assert response.status_code == 200
+    report = response.json()["report"]
+    software = report["software_analysis"]
+    assert software["source_files_analyzed"] == 2
+    assert software["dependencies_identified"] == 2
+    assert set(software["dependency_names"]) == {"cryptography", "requests"}
+    assert software["dependency_vulnerability_status"] == "NOT_CHECKED_NO_ADVISORY_FEED_CONFIGURED"
+    assert software["build_and_tests"] == "NOT_RUN; uploaded software is never executed"
+    assert "RuntimeError" not in response.text
+    assert "supersecretvalue" not in response.text
+    cost = report["cost_analysis"]
+    assert cost["assumptions"]["hourly_rate_usd"] == 200
+    assert cost["finding_counts"]["legacy_crypto"] == 1
+    assert cost["finding_counts"]["quantum_vulnerable_public_key"] == 1
+    assert cost["finding_counts"]["crypto_review"] == 1
+    assert cost["total_cost_usd"] == 1800
+    assert cost["cost_range_usd"]["expected"] == 1800
+
+
 def test_zip_scanner_rejects_path_traversal_without_extracting():
     import io
     import zipfile
@@ -116,6 +165,36 @@ def test_sample_data_is_served_from_isolated_sample_database():
     assert "isolated SQLite sample database" == body["database"]
     assert body["crypto_assets"]
     assert "not production data" in body["notice"]
+
+
+def test_downloadable_demo_inputs_produce_pdf_cost_and_software_analysis():
+    project = client.get("/api/v1/demo/sample-files/project.pdf")
+    assert project.status_code == 200
+    assert project.headers["content-type"].startswith("application/pdf")
+    project_scan = client.post(
+        "/api/v1/scans/upload",
+        files={"file": ("pqc-demo-project-spec.pdf", project.content, "application/pdf")},
+    )
+    assert project_scan.status_code == 200
+    project_report = project_scan.json()["report"]
+    assert project_report["project_profile"]["scope"] != "unknown"
+    assert project_report["risk"]["quantum"] in {"high", "critical"}
+    assert project_report["cost_analysis"]["total_cost_usd"] > 0
+
+    software = client.get("/api/v1/demo/sample-files/software.zip")
+    assert software.status_code == 200
+    assert software.headers["content-type"].startswith("application/zip")
+    software_scan = client.post(
+        "/api/v1/scans/upload",
+        files={"file": ("pqc-demo-software.zip", software.content, "application/zip")},
+    )
+    assert software_scan.status_code == 200
+    report = software_scan.json()["report"]
+    assert report["software_analysis"]["source_files_analyzed"] >= 4
+    assert report["software_analysis"]["dependencies_identified"] >= 4
+    assert report["cost_analysis"]["total_cost_usd"] > 0
+    assert "DEMO_ONLY_NOT_A_REAL_SECRET" not in software_scan.text
+    assert "scanner must not execute" not in software_scan.text
 
 
 def test_firewall_policy_creates_a_reviewable_undepoyed_draft():

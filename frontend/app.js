@@ -144,9 +144,9 @@ function renderInventory() {
   const actions = currentScan ? `${button("Export report","export-scan-pdf","quiet","↓")}${button("Export JSON","export-scan-json","quiet","{ }")}${button("Export CSV","export-scan-csv","primary","↓")}` : "";
   page.innerHTML = `${heading("Cryptographic scanner","One evidence-backed inventory and findings view. Scan source bundles, configuration, certificates, SBOM/CBOM files, and project repositories.",actions)}
     <section class="panel"><div class="panel-header"><div><h2 class="panel-title">Scan source material</h2><p class="panel-subtitle">Files are never executed. Maximum upload size: 10 GB per file. ZIPs are inspected without extraction.</p></div>${badge("Text and metadata scan","info")}</div>
-      <label class="upload-zone" id="scanner-drop"><input type="file" id="scanner-files" multiple accept=".pdf,.zip,.json,.yaml,.yml,.crt,.pem,.sbom,.cbom" hidden><span class="upload-icon">↑</span><strong>Drop files here or browse</strong><p>PDF · ZIP · JSON/YAML · PEM/CRT · SBOM/CBOM · up to 10 GB each</p><small>Candidate text matches show exact source lines, hashes, and knowledge references. Runtime reachability is not inferred.</small></label>
-      <div class="toolbar" style="border:0"><span id="scanner-selection" style="color:var(--muted);font-size:9px;flex:1">No files selected</span>${button("Start scan","start-file-scan","primary","⌕")}<progress id="scan-progress" max="100" value="0" hidden></progress></div>
-    </section><div id="scan-result" style="margin-top:14px">${currentScan ? assessmentMarkup(currentScan) : `<div class="panel empty-state"><strong>Inventory and findings will appear here</strong>No source data has been scanned in this session. Sample records are isolated under Sample Data.</div>`}</div>`;
+      <label class="upload-zone" id="scanner-drop"><input type="file" id="scanner-files" multiple accept=".pdf,.zip,.json,.yaml,.yml,.crt,.pem,.sbom,.cbom,.py,.java,.js,.jsx,.ts,.tsx,.go,.rs,.cs,.c,.cc,.cpp,.h,.hpp,.rb,.kt,.tf,.xml,.gradle,.kts,.mod,.sum,.lock,.toml,.txt,.cfg,.ini,.conf,.properties,.md,.sh,.sql" hidden><span class="upload-icon">↑</span><strong>Drop software, source files, or project data here</strong><p>ZIP · source code · PDF · JSON/YAML · PEM/CRT · SBOM/CBOM · up to 10 GB each</p><small>Candidate matches include exact file/line evidence. Uploaded software is analyzed statically and never executed.</small></label>
+      <div class="toolbar" style="border:0"><span id="scanner-selection" style="color:var(--muted);font-size:9px;flex:1">No files selected</span>${button("Load sample software ZIP","load-sample-software","quiet")}${button("Start full analysis","start-file-scan","primary","⌕")}<progress id="scan-progress" max="100" value="0" hidden></progress></div>
+    </section>${costAssumptionControls()}<div id="scan-result" style="margin-top:14px">${currentScan ? assessmentMarkup(currentScan) : `<div class="panel empty-state"><strong>Inventory and findings will appear here</strong>No source data has been scanned in this session. Sample records are isolated under Sample Data.</div>`}</div>`;
 }
 function filterInventory() {
   const query = (document.getElementById("inventory-search")?.value || "").toLowerCase();
@@ -179,34 +179,54 @@ function findingDetail(f) {
 }
 function riskRow(label, level) { return `<div class="risk-row"><span>${label}</span><span class="risk-level ${level.toLowerCase()}">${level}</span></div>`; }
 
+function costAssumptionControls() {
+  return `<section class="panel cost-assumptions"><div class="panel-header"><div><h2 class="panel-title">Editable cost assumptions</h2><p class="panel-subtitle">USD engineering estimate; adjust the blended rate and expected hours per distinct file/algorithm finding.</p></div>${badge("Estimate · not a quote","medium")}</div><div class="panel-body policy-form">
+    <div class="form-field"><label for="cost-hourly-rate">Blended rate · USD/hour</label><input id="cost-hourly-rate" class="form-control" type="number" min="1" max="5000" step="1" value="150"></div>
+    <div class="form-field"><label for="cost-legacy-hours">Legacy crypto fix · hours/finding</label><input id="cost-legacy-hours" class="form-control" type="number" min="0" max="1000" step="1" value="8"></div>
+    <div class="form-field"><label for="cost-quantum-hours">Classical public-key migration · hours/finding</label><input id="cost-quantum-hours" class="form-control" type="number" min="0" max="1000" step="1" value="16"></div>
+    <div class="form-field"><label for="cost-review-hours">Other crypto review · hours/finding</label><input id="cost-review-hours" class="form-control" type="number" min="0" max="1000" step="1" value="3"></div>
+  </div><p class="panel-subtitle" style="padding:0 14px 12px">Includes a 2-hour baseline analysis and a 75%–150% effort range. Excludes licenses, infrastructure, vendor costs, testing, and deployment.</p></section>`;
+}
+
 function assessmentMarkup(scan) {
   const report = scan?.report || {};
   const profile = report.project_profile || {};
   const items = report.crypto_assets || [];
   const knowledge = report.knowledge_recommendations || [];
   const secrets = report.potential_secret_findings || [];
+  const cost = report.cost_analysis || {};
+  const software = report.software_analysis;
   const rows = items.map(item=>`<tr><td class="table-primary">${escapeHtml(item.algorithms.join(", "))}</td><td class="code">${escapeHtml(item.file)}:${item.line}</td><td>${escapeHtml(item.evidence)}</td><td class="code">${escapeHtml(item.evidence_hash.slice(0,16))}…</td><td>${badge("Candidate · verify","medium")}</td></tr>`).join("");
   const category = value => value && value !== "unknown" ? escapeHtml(value) : "INSUFFICIENT_EVIDENCE";
+  const money = value => Number.isFinite(Number(value)) ? new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(Number(value)) : "Not calculated";
+  const costBreakdown = Object.entries(cost.finding_counts || {}).map(([name,count])=>`<div class="risk-row"><span>${escapeHtml(name.replaceAll("_"," "))} · ${count} finding(s)</span><span>${escapeHtml(String((cost.assumptions||{})[`${name==="legacy_crypto"?"legacy_fix":name==="quantum_vulnerable_public_key"?"quantum_migration":"crypto_review"}_hours_per_finding`] ?? 0))} h each</span></div>`).join("");
+  const softwareSection = software ? panel("Software analysis",`<div class="panel-body kv-grid">
+    ${[["Text files analyzed",software.source_files_analyzed],["Source lines analyzed",software.total_text_lines_analyzed],["Dependencies identified",software.dependencies_identified],["Crypto candidate matches",software.crypto_candidate_matches],["Potential secrets",software.potential_secret_findings],["Dependency vulnerability scan",software.dependency_vulnerability_status],["Build and tests",software.build_and_tests]].map(([label,value])=>`<div class="kv"><small>${escapeHtml(label)}</small><strong>${escapeHtml(String(value ?? "Not available"))}</strong></div>`).join("")}
+    <div class="kv"><small>Languages detected</small><strong>${escapeHtml(Object.entries(software.languages_detected||{}).map(([name,count])=>`${name} (${count})`).join(", ")||"None detected")}</strong></div>
+    <div class="kv" style="grid-column:1/-1"><small>Dependency names · versions/advisories not verified</small><strong>${escapeHtml((software.dependency_names||[]).join(", ")||"No supported package manifest found")}</strong></div>
+    <div class="kv" style="grid-column:1/-1"><small>Analysis limitations</small><strong>${escapeHtml((software.limitations||[]).join(" "))}</strong></div>
+  </div>`,"Static inspection only · software was not executed") : "";
   return `<div class="grid section-grid">
     <section class="panel"><div class="panel-header"><div><h2 class="panel-title">Assessment summary</h2><p class="panel-subtitle">${escapeHtml(scan.filename || "Uploaded document")} · ${escapeHtml(scan.scan_id || "scan")} · SHA-256 ${escapeHtml((scan.sha256||"").slice(0,18))}…</p></div>${badge(report.classification || scan.status || "review")}</div>
       <div class="panel-body kv-grid">${[["Project scope",profile.scope],["Technology stack",profile.technology],["Timeline",profile.timeline],["Budget source",profile.budget],["Vendors",profile.vendors],["Dependencies",profile.dependencies],["Security requirements",profile.security_requirements],["Risks stated in source",profile.risks]].map(([label,value])=>`<div class="kv"><small>${label}</small><strong>${escapeHtml(Array.isArray(value)?value.join(", ")||"INSUFFICIENT_EVIDENCE":value||"INSUFFICIENT_EVIDENCE")}</strong></div>`).join("")}</div>
     </section>
-    <section class="panel"><div class="panel-header"><div><h2 class="panel-title">Risk dimensions</h2><p class="panel-subtitle">Calculated from crypto matches and controlled knowledge results.</p></div></div><div class="panel-body">${[["Classical",report.risk?.classical],["Quantum",report.risk?.quantum],["Implementation",report.risk?.implementation],["Configuration",report.risk?.configuration],["Financial",report.risk?.financial],["Compliance",report.risk?.compliance],["Operational",report.risk?.operational]].map(([label,value])=>riskRow(label,category(value))).join("")}</div></section>
+    <section class="panel"><div class="panel-header"><div><h2 class="panel-title">Risk dimensions</h2><p class="panel-subtitle">Calculated from crypto matches and controlled knowledge results.</p></div>    </div><div class="panel-body">${[["Classical",report.risk?.classical],["Quantum",report.risk?.quantum],["Implementation",report.risk?.implementation],["Configuration",report.risk?.configuration],["Compliance",report.risk?.compliance],["Operational",report.risk?.operational]].map(([label,value])=>riskRow(label,category(value))).join("")}</div></section>
     </div>
-    <div class="grid section-grid" style="margin-top:14px">${panel("Cost and efficiency analysis",`<div class="panel-body"><div class="risk-row"><span>Cost assessment</span>${badge(report.cost_analysis?.status || "unknown","medium")}</div><p style="color:#a1afb8;font-size:9px">${escapeHtml(report.cost_analysis?.reason || "No cost model supplied.")}</p><div class="risk-row"><span>Source budget</span><strong style="font-size:9px">${escapeHtml(report.cost_analysis?.source_budget || "INSUFFICIENT_EVIDENCE")}</strong></div><div class="risk-row"><span>Efficiency / performance</span>${badge(report.efficiency_analysis?.status || "NOT_MEASURED","info")}</div><p style="color:#a1afb8;font-size:9px">${escapeHtml(report.efficiency_analysis?.reason || "Baseline telemetry is required.")}</p></div>`,"No monetary or efficiency claims are fabricated")}${panel("Controlled knowledge and model status",`<div class="panel-body"><div class="risk-row"><span>Generative LLM</span>${badge(report.llm_status?.configured ? "Configured" : "Not configured","medium")}</div><p style="color:#a1afb8;font-size:9px;line-height:1.6">${escapeHtml(report.llm_status?.reason || "Model configuration status unavailable.")}</p>${knowledge.map(k=>`<div class="evidence-box" style="margin-top:8px"><strong style="font-size:9px">${escapeHtml(k.algorithm)} · ${escapeHtml(k.knowledge_version)}</strong><p>${escapeHtml(k.reasoning)}</p><div class="evidence-meta"><span>${escapeHtml(k.knowledge_source)}</span><span>Confidence ${Math.round((k.confidence||0)*100)}%</span></div></div>`).join("")||`<p style="color:var(--muted);font-size:9px">No algorithm-specific knowledge retrieved from available evidence.</p>`}</div>`,"Recommendations cite knowledge source, version, and evidence")}</div>
+    <div class="grid section-grid" style="margin-top:14px">${panel("Total estimated engineering cost",`<div class="panel-body"><div class="risk-row"><span>Expected total · USD</span><strong>${money(cost.total_cost_usd)}</strong></div><div class="risk-row"><span>Estimated range</span><strong>${money(cost.cost_range_usd?.low)} – ${money(cost.cost_range_usd?.high)}</strong></div><div class="risk-row"><span>Expected effort</span><strong>${escapeHtml(String(cost.estimated_hours?.expected ?? "—"))} h · ${escapeHtml(String(cost.assumptions?.hourly_rate_usd ?? "—"))} USD/h</strong></div>${costBreakdown}<p style="color:#a1afb8;font-size:9px">${escapeHtml(cost.estimate_type||"Assumption-based estimate; not a quote.")} ${escapeHtml((cost.exclusions||[]).join(" "))}</p></div>`,"Based on editable assumptions and unique file/algorithm matches")}${panel("Controlled knowledge and model status",`<div class="panel-body"><div class="risk-row"><span>Generative LLM</span>${badge(report.llm_status?.configured ? "Configured" : "Not configured","medium")}</div><p style="color:#a1afb8;font-size:9px;line-height:1.6">${escapeHtml(report.llm_status?.reason || "Model configuration status unavailable.")}</p>${knowledge.map(k=>`<div class="evidence-box" style="margin-top:8px"><strong style="font-size:9px">${escapeHtml(k.algorithm)} · ${escapeHtml(k.knowledge_version)}</strong><p>${escapeHtml(k.reasoning)}</p><div class="evidence-meta"><span>${escapeHtml(k.knowledge_source)}</span><span>Confidence ${Math.round((k.confidence||0)*100)}%</span></div></div>`).join("")||`<p style="color:var(--muted);font-size:9px">No algorithm-specific knowledge retrieved from available evidence.</p>`}</div>`,"Recommendations cite knowledge source, version, and evidence")}</div>
+    ${softwareSection}
     ${panel(`Crypto evidence · ${items.length} candidate match${items.length===1?"":"es"}`,makeTable(["ALGORITHM","FILE / LINE","SOURCE EVIDENCE","LINE HASH","VALIDATION"],rows||"", "No cryptographic algorithm matches found in scanned text."),"Matches are inventory candidates; presence does not establish exploitability or runtime use")}
     ${secrets.length ? panel(`Potential secret markers · ${secrets.length}`,makeTable(["TYPE","FILE / LINE","EVIDENCE","HASH"],secrets.map(s=>`<tr><td>${escapeHtml(s.type)}</td><td class="code">${escapeHtml(s.file)}:${s.line}</td><td>[REDACTED]</td><td class="code">${escapeHtml(s.evidence_hash.slice(0,18))}…</td></tr>`).join("")),"Secret values are never rendered") : ""}
     <section class="panel" style="margin-top:14px"><div class="panel-body"><strong style="font-size:10px">Evidence limitations</strong><ul style="color:#96a5ae;font-size:9px;line-height:1.7">${(report.uncertainties||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join("")||"<li>Further validation is needed before remediation or policy actions.</li>"}</ul></div></section>`;
 }
 
 function renderProjectScanner() {
-  page.innerHTML = `${heading("Project risk analysis","Upload one project-specification PDF for a structured scope, technology, risk, budget, dependency, and security-requirement assessment.",currentScan ? `${button("Export PDF","export-scan-pdf","quiet","↓")}${button("Export JSON","export-scan-json","primary","{ }")}` : "")}
+  page.innerHTML = `${heading("Project risk analysis","Upload one project-specification PDF for evidence-based risks and an editable USD engineering-cost estimate.",currentScan ? `${button("Export PDF","export-scan-pdf","quiet","↓")}${button("Export JSON","export-scan-json","quiet","{ }")}${button("Export CSV","export-scan-csv","primary","↓")}` : "")}
     <section class="panel"><div class="panel-header"><div><h2 class="panel-title">Project document scanner</h2><p class="panel-subtitle">Text-only PDF parsing. No uploaded code is executed. Maximum size: 10 GB.</p></div>${badge("Evidence-based","info")}</div>
       <label class="upload-zone" id="project-drop"><input type="file" id="project-file" accept=".pdf" hidden><span class="upload-icon">↑</span><strong>Drop a project PDF here or browse</strong><p>PDF · Maximum 10 GB per file</p><small>Values absent from the source remain marked as insufficient evidence.</small></label>
-      <div class="toolbar" style="border:0"><span id="project-upload-name" style="color:var(--muted);font-size:9px;flex:1">No document selected</span>${button("Analyze project risks","analyze-project","primary","⌕")}<progress id="project-progress" max="100" value="0" hidden></progress></div>
-    </section>
-    <div id="project-results" style="margin-top:14px">${currentScan ? assessmentMarkup(currentScan) : `<div class="panel empty-state"><strong>Ready for a project PDF</strong>The report is generated from extracted text and approved cryptographic knowledge, with unverified costs and operational impact kept explicitly unknown.</div>`}</div>
-    <section class="panel" style="margin-top:14px"><div class="panel-header"><div><h2 class="panel-title">Analysis method and limitations</h2><p class="panel-subtitle">The current service is not a trained generative LLM.</p></div></div><div class="panel-body"><p style="color:#aab8c0;font-size:10px;line-height:1.7">Current assessment uses bounded document parsing, deterministic field and cryptographic-pattern extraction, and recommendations retrieved from the controlled versioned knowledge repository. No external LLM is configured. Cost savings, implementation effort, delivery efficiency, compliance conclusions, and deployment readiness are not guessed when their source evidence or measured inputs are absent.</p></div></section>`;
+      <div class="toolbar" style="border:0"><span id="project-upload-name" style="color:var(--muted);font-size:9px;flex:1">No document selected</span>${button("Load sample project PDF","load-sample-project","quiet")}${button("Analyze risk + total cost","analyze-project","primary","⌕")}<progress id="project-progress" max="100" value="0" hidden></progress></div>
+    </section>${costAssumptionControls()}
+    <div id="project-results" style="margin-top:14px">${currentScan ? assessmentMarkup(currentScan) : `<div class="panel empty-state"><strong>Ready for a project PDF</strong>The report includes evidence-based risks and a clearly labeled estimate based on adjustable USD rates and effort assumptions.</div>`}</div>
+    <section class="panel" style="margin-top:14px"><div class="panel-header"><div><h2 class="panel-title">Analysis method and limitations</h2><p class="panel-subtitle">The current service is not a trained generative LLM.</p></div></div><div class="panel-body"><p style="color:#aab8c0;font-size:10px;line-height:1.7">Risk is based on text evidence and controlled recommendations. The USD total is an engineering effort estimate using the editable rate and hours above—not an exact project quote. Licenses, vendors, performance, compatibility, deployment, and compliance require separate validated inputs.</p></div></section>`;
 }
 function renderRepositories() {
   page.innerHTML = `${heading("Repositories","Connect source control and review repository health, crypto use, secrets, builds, and dependencies.",`${button("Connect GitLab","connect-gitlab","quiet","＋")}${button("Connect GitHub","connect-github","primary","＋")}`)}
@@ -447,23 +467,67 @@ function updateScannerSelection(files) {
   if(total>10*1024**3)showToast("Combined selection exceeds the 10 GiB request limit.",true);
   if(list.some(file=>file.size>10*1024**3))showToast("A selected file exceeds the 10 GiB per-file limit.",true);
 }
+function readCostAssumptions() {
+  const fields={
+    hourly_rate_usd:"cost-hourly-rate",
+    legacy_fix_hours_per_finding:"cost-legacy-hours",
+    quantum_migration_hours_per_finding:"cost-quantum-hours",
+    crypto_review_hours_per_finding:"cost-review-hours"
+  };
+  const assumptions={};
+  for(const [key,id] of Object.entries(fields)){
+    const input=document.getElementById(id);const value=Number(input?.value);
+    const max=key==="hourly_rate_usd"?5000:1000;
+    if(!Number.isFinite(value)||value<(key==="hourly_rate_usd"?1:0)||value>max){
+      throw new Error(`Enter a valid ${id.replace("cost-","").replaceAll("-"," ")} value.`);
+    }
+    assumptions[key]=value;
+  }
+  return assumptions;
+}
+function aggregateCostAnalysis(results) {
+  const reports=results.map(item=>item.report?.cost_analysis).filter(Boolean);
+  if(!reports.length)return null;
+  const sumValues=(section,key)=>reports.reduce((total,item)=>total+Number(item[section]?.[key]||0),0);
+  const counts={};
+  for(const report of reports)for(const [name,count] of Object.entries(report.finding_counts||{}))counts[name]=(counts[name]||0)+Number(count);
+  const hours={low:sumValues("estimated_hours","low"),expected:sumValues("estimated_hours","expected"),high:sumValues("estimated_hours","high")};
+  const costs={low:sumValues("cost_range_usd","low"),expected:sumValues("cost_range_usd","expected"),high:sumValues("cost_range_usd","high")};
+  return {...reports.at(-1),total_cost_usd:costs.expected,estimated_hours:hours,cost_range_usd:costs,finding_counts:counts};
+}
 async function runUploadScan(inputId,resultId,progressId,projectOnly=false) {
   const input=document.getElementById(inputId);const files=projectOnly?(selectedProjectFile?[selectedProjectFile]:[]):[...(input?.files||[])];
   if(!files.length)return showToast("Select at least one supported input file.",true);
   if(projectOnly&&files[0].name.toLowerCase().split(".").at(-1)!=="pdf")return showToast("Project risk analysis accepts PDF only.",true);
   const total=files.reduce((sum,file)=>sum+file.size,0);if(total>10*1024**3)return showToast("Combined input exceeds the 10 GiB limit.",true);
+  let assumptions;try{assumptions=readCostAssumptions();}catch(error){return showToast(error.message,true);}
   const progress=document.getElementById(progressId);progress.hidden=false;progress.value=0;
   const results=[];
   try {
     for(let i=0;i<files.length;i++){
-      const file=files[i];const form=new FormData();form.append("file",file,file.name);
+      const file=files[i];const form=new FormData();form.append("file",file,file.name);for(const [key,value] of Object.entries(assumptions))form.append(key,String(value));
       const result=await request(`${API}/scans/upload`,{method:"POST",body:form});results.push(result);progress.value=Math.round((i+1)/files.length*100);
     }
     const result=results.at(-1);currentScan=result;
     const aggregateAssets=results.flatMap(r=>r.report?.crypto_assets||[]);
-    if(results.length>1){currentScan={...result,filename:`${results.length} uploaded files`,report:{...result.report,crypto_assets:aggregateAssets,algorithms:[...new Set(results.flatMap(r=>r.report?.algorithms||[]))]}};}
+    if(results.length>1){
+      const softwareReports=results.map(r=>r.report?.software_analysis).filter(Boolean);
+      const languages={};for(const item of softwareReports)for(const [name,count] of Object.entries(item.languages_detected||{}))languages[name]=(languages[name]||0)+count;
+      const packageManifests=softwareReports.flatMap(item=>item.package_manifests||[]);
+      const dependencyNames=[...new Set(softwareReports.flatMap(item=>item.dependency_names||[]))].sort();
+      const secrets=results.flatMap(r=>r.report?.potential_secret_findings||[]);
+      const risks=results.map(r=>r.report?.risk||{});
+      const rank={unknown:0,low:1,medium:2,high:3,critical:4};
+      const mergedRisk={};for(const key of ["classical","quantum","implementation","configuration","compliance","operational"]){mergedRisk[key]=risks.map(item=>item[key]||"unknown").sort((a,b)=>(rank[b]||0)-(rank[a]||0))[0]||"unknown";}
+      const softwareAnalysis=softwareReports.length?{...softwareReports.at(-1),source_files_analyzed:softwareReports.reduce((n,item)=>n+item.source_files_analyzed,0),total_text_lines_analyzed:softwareReports.reduce((n,item)=>n+item.total_text_lines_analyzed,0),languages_detected:languages,package_manifests:packageManifests,dependencies_identified:dependencyNames.length,dependency_names:dependencyNames.slice(0,500),crypto_candidate_matches:aggregateAssets.length,potential_secret_findings:secrets.length}:undefined;
+      const report={...result.report,crypto_assets:aggregateAssets,algorithms:[...new Set(results.flatMap(r=>r.report?.algorithms||[]))],risk:mergedRisk,potential_secret_findings:secrets,cost_analysis:aggregateCostAnalysis(results),uncertainties:[...new Set(results.flatMap(r=>r.report?.uncertainties||[]))]};
+      if(softwareAnalysis)report.software_analysis=softwareAnalysis;
+      currentScan={...result,filename:`${results.length} uploaded files`,report};
+    }
     const history=readLocal(SCAN_HISTORY_KEY,[]);history.push({scan_id:result.scan_id,created_at:new Date().toISOString(),filename:results.length>1?`${results.length} files`:result.filename,asset_count:aggregateAssets.length,algorithms:[...new Set(results.flatMap(r=>r.report?.algorithms||[]))],status:result.status});saveLocal(SCAN_HISTORY_KEY,history.slice(-50));
     const resultContainer=document.getElementById(resultId);if(resultContainer)resultContainer.innerHTML=assessmentMarkup(currentScan);
+    const headingActions=page.querySelector(".heading-actions");
+    if(headingActions)headingActions.innerHTML=`${button("Export PDF","export-scan-pdf","quiet","↓")}${button("Export JSON","export-scan-json","quiet","{ }")}${button("Export full CSV","export-scan-csv","primary","↓")}`;
     if(input)input.value="";
     if(projectOnly)selectedProjectFile=null;
     showToast(`Scan completed for ${results.length} input file(s). Review evidence and uncertainty before acting.`);
@@ -509,7 +573,13 @@ function modal(title, description, content = "") {
 function csvDownload(filename, headers, rows) {
   const quote=v=>`"${String(v??"").replaceAll('"','""')}"`;
   const csv=[headers,...rows].map(row=>row.map(quote).join(",")).join("\r\n");
-  const link=document.createElement("a");link.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));link.download=filename;link.click();URL.revokeObjectURL(link.href);
+  downloadBlob(filename,new Blob([csv],{type:"text/csv"}));
+}
+function downloadBlob(filename, blob) {
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement("a");
+  link.href=url;link.download=filename;document.body.append(link);link.click();link.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 async function action(name) {
   const dialog=document.getElementById("action-modal");if(name==="close-modal"){dialog.close();return;}
@@ -519,19 +589,48 @@ async function action(name) {
   if(name==="logout"){localStorage.removeItem(DEMO_SESSION_KEY);dialog.close();document.body.classList.add("public-view");renderLanding();bindPageEvents();return;}
   if(name==="start-file-scan"){await runUploadScan("scanner-files","scan-result","scan-progress");return;}
   if(name==="analyze-project"){await runUploadScan("project-file","project-results","project-progress",true);return;}
+  if(name==="load-sample-project"||name==="load-sample-software"){
+    const project=name==="load-sample-project";
+    const input=document.getElementById(project?"project-file":"scanner-files");
+    try{
+      const response=await fetch(`${API}/demo/sample-files/${project?"project.pdf":"software.zip"}`);
+      if(!response.ok)throw new Error(`Sample download failed (${response.status}).`);
+      const blob=await response.blob();
+      const sample=new File([blob],project?"pqc-demo-project-spec.pdf":"pqc-demo-software.zip",{type:blob.type});
+      const transfer=new DataTransfer();transfer.items.add(sample);input.files=transfer.files;
+      if(project){selectedProjectFile=sample;document.getElementById("project-upload-name").textContent=`${sample.name} · ${(sample.size/1024).toFixed(1)} KB`;}
+      else updateScannerSelection(input.files);
+      showToast("Synthetic sample loaded. Review the cost assumptions, then run the scan.");
+    }catch(error){showToast(`Could not load sample input: ${error.message}`,true);}
+    return;
+  }
   if(name==="export-scan-json"){
     if(!currentScan)return showToast("Run a scan before exporting a report.",true);
-    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(currentScan,null,2)],{type:"application/json"}));a.download=`pqc-assessment-${currentScan.scan_id}.json`;a.click();URL.revokeObjectURL(a.href);return;
+    downloadBlob(`pqc-assessment-${currentScan.scan_id}.json`,new Blob([JSON.stringify(currentScan,null,2)],{type:"application/json"}));return;
   }
   if(name==="export-scan-csv"){
     if(!currentScan)return showToast("Run a scan before exporting an inventory.",true);
-    const rows=(currentScan.report?.crypto_assets||[]).flatMap(item=>item.algorithms.map(algorithm=>[algorithm,item.file,item.line,item.evidence,item.evidence_hash]));
-    csvDownload("pqc-crypto-evidence.csv",["Algorithm","File","Line","Evidence","SHA-256"],rows);return;
+    const report=currentScan.report||{};const cost=report.cost_analysis||{};const software=report.software_analysis||{};
+    const rows=[
+      ["Assessment","Status",report.classification||currentScan.status,"","",""],
+      ["Cost","Expected total USD",cost.total_cost_usd??"","","",""],
+      ["Cost","Low estimate USD",cost.cost_range_usd?.low??"","","",""],
+      ["Cost","High estimate USD",cost.cost_range_usd?.high??"","","",""],
+      ["Cost","Expected effort hours",cost.estimated_hours?.expected??"","","",""],
+      ["Cost","Hourly rate USD",cost.assumptions?.hourly_rate_usd??"","","",""],
+      ...Object.entries(report.risk||{}).map(([name,value])=>["Risk",name,value,"","",""]),
+      ...Object.entries(software.languages_detected||{}).map(([name,count])=>["Software language",name,count,"","",""]),
+      ...(software.package_manifests||[]).map(item=>["Package manifest",item.file,`${item.dependency_count} dependencies`,"","",""]),
+      ...(software.dependency_names||[]).map(name=>["Dependency",name,"Inventory only; vulnerabilities not checked","","",""]),
+      ...(report.crypto_assets||[]).flatMap(item=>item.algorithms.map(algorithm=>["Crypto evidence",algorithm,item.file,item.line,item.evidence,item.evidence_hash])),
+      ...(report.potential_secret_findings||[]).map(item=>["Potential secret",item.type,item.file,item.line,"[REDACTED]",item.evidence_hash])
+    ];
+    csvDownload("pqc-full-analysis.csv",["Type","Category","Value","File","Line","Evidence / SHA-256"],rows);return;
   }
   if(name==="export-scan-pdf"){
     if(!currentScan)return showToast("Run a scan before exporting a PDF.",true);
     const w=window.open("","_blank");if(!w)return showToast("Allow pop-ups to open the printable PDF report.",true);
-    const printable=`<!doctype html><html><head><title>PQC-Migrate Assessment</title><style>body{font:14px Arial,sans-serif;color:#17232d;margin:36px}h1,h2{color:#123b3b}small{color:#586a74}table{width:100%;border-collapse:collapse}td,th{border:1px solid #bcc7cc;padding:6px;text-align:left;font-size:11px}section{page-break-inside:avoid;margin:18px 0}pre{white-space:pre-wrap;word-break:break-word;font:11px monospace}</style></head><body><h1>Cryptographic migration assessment</h1><small>Evidence-based report · ${escapeHtml(currentScan.scan_id)} · ${escapeHtml(new Date().toLocaleString())}</small><p>Assessment is not a claim of quantum safety. Candidate matches require validation.</p><h2>Project profile</h2><pre>${escapeHtml(JSON.stringify(currentScan.report.project_profile,null,2))}</pre><h2>Risk dimensions</h2><pre>${escapeHtml(JSON.stringify(currentScan.report.risk,null,2))}</pre><h2>Cost and efficiency</h2><pre>${escapeHtml(JSON.stringify({cost:currentScan.report.cost_analysis,efficiency:currentScan.report.efficiency_analysis},null,2))}</pre><h2>Cryptographic evidence</h2><table><tr><th>Algorithms</th><th>File</th><th>Line</th><th>Evidence hash</th></tr>${(currentScan.report.crypto_assets||[]).map(x=>`<tr><td>${escapeHtml(x.algorithms.join(", "))}</td><td>${escapeHtml(x.file)}</td><td>${x.line}</td><td>${escapeHtml(x.evidence_hash)}</td></tr>`).join("")}</table><h2>Knowledge recommendations</h2><pre>${escapeHtml(JSON.stringify(currentScan.report.knowledge_recommendations,null,2))}</pre><h2>Uncertainties</h2><ul>${(currentScan.report.uncertainties||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join("")}</ul><small>Model status: ${escapeHtml(currentScan.report.llm_status?.reason||"not available")}</small></body></html>`;
+    const printable=`<!doctype html><html><head><title>PQC-Migrate Assessment</title><style>body{font:14px Arial,sans-serif;color:#17232d;margin:36px}h1,h2{color:#123b3b}small{color:#586a74}table{width:100%;border-collapse:collapse}td,th{border:1px solid #bcc7cc;padding:6px;text-align:left;font-size:11px}section{page-break-inside:avoid;margin:18px 0}pre{white-space:pre-wrap;word-break:break-word;font:11px monospace}</style></head><body><h1>Cryptographic migration assessment</h1><small>Evidence-based report · ${escapeHtml(currentScan.scan_id)} · ${escapeHtml(new Date().toLocaleString())}</small><p>Assessment is not a claim of quantum safety. Candidate matches require validation.</p><h2>Project profile</h2><pre>${escapeHtml(JSON.stringify(currentScan.report.project_profile,null,2))}</pre><h2>Risk dimensions</h2><pre>${escapeHtml(JSON.stringify(currentScan.report.risk,null,2))}</pre><h2>Estimated cost and effort · USD</h2><pre>${escapeHtml(JSON.stringify(currentScan.report.cost_analysis,null,2))}</pre><h2>Software analysis</h2><pre>${escapeHtml(JSON.stringify(currentScan.report.software_analysis||{status:"Not a software archive"},null,2))}</pre><h2>Cryptographic evidence</h2><table><tr><th>Algorithms</th><th>File</th><th>Line</th><th>Evidence hash</th></tr>${(currentScan.report.crypto_assets||[]).map(x=>`<tr><td>${escapeHtml(x.algorithms.join(", "))}</td><td>${escapeHtml(x.file)}</td><td>${x.line}</td><td>${escapeHtml(x.evidence_hash)}</td></tr>`).join("")}</table><h2>Potential secret findings</h2><pre>${escapeHtml(JSON.stringify(currentScan.report.potential_secret_findings||[],null,2))}</pre><h2>Knowledge recommendations</h2><pre>${escapeHtml(JSON.stringify(currentScan.report.knowledge_recommendations,null,2))}</pre><h2>Uncertainties</h2><ul>${(currentScan.report.uncertainties||[]).map(x=>`<li>${escapeHtml(x)}</li>`).join("")}</ul><small>Model status: ${escapeHtml(currentScan.report.llm_status?.reason||"not available")}</small></body></html>`;
     w.document.write(printable);w.document.close();w.focus();setTimeout(()=>w.print(),250);return;
   }
   if(name==="preview-policy"){document.getElementById("firewall-policy-output").innerHTML=`<div class="evidence-box"><strong>Policy preview · not deployed</strong><pre style="white-space:pre-wrap;color:#cbd7dd">${escapeHtml(JSON.stringify(buildFirewallPolicy(),null,2))}</pre></div>`;return;}
@@ -567,7 +666,7 @@ async function action(name) {
     if(!currentScan){modal("No organization scan to export","Run a project or cryptographic scan first. Sample records are isolated from organization reports.");return;}
     modal("Export assessment","Export only the current scan evidence.",`<div style="display:flex;gap:8px;margin-top:14px">${button("PDF / Print","export-scan-pdf","quiet")}${button("JSON","export-scan-json","quiet")}${button("CSV","export-scan-csv","primary")}</div>`);return;
   }
-  if(name==="export-json"){if(!currentScan)return showToast("Run a scan before exporting. Sample records are available in their separate view.",true);const link=document.createElement("a");link.href=URL.createObjectURL(new Blob([JSON.stringify(currentScan,null,2)],{type:"application/json"}));link.download=`pqc-assessment-${currentScan.scan_id}.json`;link.click();URL.revokeObjectURL(link.href);return;}
+  if(name==="export-json"){if(!currentScan)return showToast("Run a scan before exporting. Sample records are available in their separate view.",true);downloadBlob(`pqc-assessment-${currentScan.scan_id}.json`,new Blob([JSON.stringify(currentScan,null,2)],{type:"application/json"}));return;}
   if(name==="export-pdf"){dialog.close();window.print();return;}
   if(navItems.some(item=>item.title===name)){dialog.close();setPage(name);return;}
   if(name==="run-scan"){

@@ -27,6 +27,7 @@ SECTIONS = [
             "The organization profile, scan history, and role selector are stored in browser local storage. Administrator and accessor are demonstration modes only; they are not server-authenticated identities, and the UI role is not an authorization boundary.",
             "The project PDF flow extracts scope, technology, timeline, budget, vendors, dependencies, and security requirements when the document contains evidence. It reports explicit unknown or insufficient-evidence states for absent data and offers JSON and print-to-PDF exports.",
             "The crypto scanner accepts PDF, ZIP, JSON/YAML, PEM/CRT, SBOM, and CBOM inputs. Findings include candidate algorithm matches, source file and line, redacted evidence where relevant, and a SHA-256 line hash. The report can be exported as JSON, CSV, or printed to PDF.",
+            "The scanner includes synthetic sample project-PDF and software-ZIP inputs. A software archive report summarizes bounded static source files, observed languages, selected package manifests, dependency names, crypto candidates, and redacted secret markers. It does not run builds or claim dependency CVE coverage.",
             "The policy center builds a project-specific policy artifact, allows preview and draft save, and groups firewall events, CI/CD guard, and secure-data status in one place. A saved draft is not enforced by a live gateway and is not a production deployment.",
             "Synthetic repository, crypto asset, finding, and firewall event records are kept in a separate SQLite sample database and shown in the Sample Data view. They are not mixed into the organization scan history.",
             "Deployment issue intake accepts a reported issue and repository reference. It does not clone the repository or invent source/dependency correlations when those relationships have not been scanned.",
@@ -40,6 +41,7 @@ SECTIONS = [
             "The embedding vectors are normalized and indexed by FAISS IndexFlatIP. A question is embedded using the same pretrained encoder; the default top three similar reference chunks are retrieved and placed into a fixed response template. This is retrieval-augmented text assembly, not original generative reasoning or supervised training.",
             "The local demo was run against the provided crypto_flaws_and_fixes.pdf reference. It returned text about poor key management, weak padding, random number generation, and timing side channels. The run emitted a Hugging Face Hub unauthenticated-request warning while loading model weights; inference did complete. The source PDF was processed locally and was not sent as a prompt to a generative service.",
             "The upload scanner is deterministic pattern matching joined to the controlled recommendation data in pqc_migrate/knowledge_repo.py. It does not infer runtime reachability, validated financial cost, performance impact, complete certificate metadata, or dependency blast radius without dedicated evidence.",
+            "The report now includes an initial USD engineering-effort estimate: default blended rate USD 150/hour, two baseline analysis hours, and editable effort assumptions of 8 hours per legacy-crypto finding, 16 hours per classical public-key migration finding, and 3 hours per other crypto review finding. The low/high range is 75%–150% of expected effort. This is a planning estimate, not an exact project or vendor cost; licenses, infrastructure, compatibility, validation, and deployment are excluded.",
             "Therefore the system does not claim that its advice is exhaustive, that estimates are measured, or that a system is quantum safe. Review candidate matches against current standards, implementation documentation, and organizational policy.",
         ],
     ),
@@ -58,11 +60,11 @@ SECTIONS = [
         [
             "1. Static source checks - node --check frontend/app.js exited successfully. Pylance reported no Python syntax errors in backend/app/main.py or src/crypto_llm.py, and no diagnostics remained in those checked Python files.",
             "2. Dependency consistency - .venv Python -m pip check completed with: No broken requirements found.",
-            "3. Automated tests - the full pytest suite completed with 22 passed. One non-fatal Starlette deprecation warning remains: its TestClient integration with httpx is deprecated and recommends httpx2.",
+            "3. Automated tests - the full pytest suite completed with 26 passed. Non-fatal Starlette, Pydantic, and FastAPI deprecation warnings remain in the existing application/tests.",
             "4. Local reference retrieval - the original PDF was passed to src/crypto_llm.py. The all-MiniLM-L6-v2 encoder loaded, the FAISS retrieval returned relevant PDF passages, and the command completed. This validates retrieval execution, not model training or answer completeness.",
             "5. Project risk PDF flow - the original PDF was uploaded in the browser and produced a REVIEW_REQUIRED report. Presently absent scope, budget, vendors, dependency, and security fields remained unknown or insufficient evidence; cost was not fabricated; the report disclosed that no generative LLM was configured.",
             "6. Cryptographic PDF scan - the original PDF was scanned in the browser. The saved scan summary contained 79 candidate evidence items across 16 observed labels: 3DES, AES, DES, DH, ECC, HMAC, MD5, ML-DSA, ML-KEM, RC4, RSA, SHA-1, SHA-2, SHA-3, SLH-DSA, and TLS. Candidate matches still require validation.",
-            "7. Integrated UI and API - the landing page and both demo-role selections were exercised. The accessor Settings screen had disabled profile controls and no save action. All 18 workspace navigation views rendered with zero captured page errors. GET /api/v1/demo/samples returned HTTP 200 with 6 assets, 3 findings, 3 firewall events, and 2 repositories. A policy for Seven-step validation was saved with a UUID and explicitly remained draft/not deployed.",
+            "7. Integrated UI and API - the landing page and both demo-role selections were exercised. The accessor Settings screen had disabled profile controls and no save action. All 18 workspace navigation views rendered with zero captured page errors. The synthetic project PDF returned a risk report and editable-assumption USD estimate; the synthetic software ZIP returned source, dependency, crypto, and cost analysis without execution. Browser CSV export was verified to include the estimated cost, dependencies, and crypto evidence while omitting the redacted placeholder secret. A project policy draft remains undeployed.",
         ],
     ),
     (
@@ -146,7 +148,7 @@ def main() -> None:
     )
     cover.draw_line((LEFT, 435), (RIGHT, 435), color=TEAL, width=1.4)
     cover.insert_text((LEFT, 475), f"Generated: {datetime.now().astimezone().strftime('%Y-%m-%d %H:%M %Z')}", fontsize=10, fontname="helv", color=(1, 1, 1))
-    cover.insert_text((LEFT, 508), "Validation result: 22 tests passed; seven demo validation steps recorded.", fontsize=10, fontname="helv", color=(1, 1, 1))
+    cover.insert_text((LEFT, 508), "Validation result: 26 tests passed; seven demo validation steps recorded.", fontsize=10, fontname="helv", color=(1, 1, 1))
     cover.insert_textbox(
         pymupdf.Rect(LEFT, 590, RIGHT, 710),
         "Important model disclosure: the current system does not contain a trained generative LLM. It includes a local PDF retrieval demo and a deterministic, evidence-based scanner. Unknown cost, performance, dependency, and runtime facts are intentionally not fabricated.",

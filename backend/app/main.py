@@ -4,9 +4,9 @@ import uuid
 from typing import Any, Dict, List
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from backend.app.config import settings
@@ -22,6 +22,7 @@ from backend.app.security import secure_headers
 from backend.app.services.agent_orchestrator import AgentOrchestrator
 from backend.app.services.audit import AuditLogger
 from backend.app.services.crypto_scanner import detect_crypto_usage
+from backend.app.services.demo_upload_samples import project_specification_pdf, software_bundle_zip
 from backend.app.services.firewall import CryptoFirewallGateway
 from backend.app.services.project_scanner import build_project_scan_result
 from backend.app.services.repository_scanner import correlate_runtime_issue
@@ -78,6 +79,24 @@ async def health() -> Dict[str, str]:
 @app.get(f"{settings.api_v1_prefix}/demo/samples")
 async def demo_samples() -> Dict[str, Any]:
     return list_sample_data()
+
+
+@app.get(f"{settings.api_v1_prefix}/demo/sample-files/project.pdf", include_in_schema=False)
+async def demo_project_sample_file() -> Response:
+    return Response(
+        content=project_specification_pdf(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="pqc-demo-project-spec.pdf"'},
+    )
+
+
+@app.get(f"{settings.api_v1_prefix}/demo/sample-files/software.zip", include_in_schema=False)
+async def demo_software_sample_file() -> Response:
+    return Response(
+        content=software_bundle_zip(),
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="pqc-demo-software.zip"'},
+    )
 
 
 @app.get("/", include_in_schema=False)
@@ -267,9 +286,20 @@ async def create_evaluation(payload: EvaluationRunCreate):
 
 @app.post(f"{settings.api_v1_prefix}/ingest")
 @app.post(f"{settings.api_v1_prefix}/scans/upload")
-async def ingest_artifact(file: UploadFile = File(...)):
+async def ingest_artifact(
+    file: UploadFile = File(...),
+    hourly_rate_usd: float = Form(default=150, ge=1, le=5000),
+    legacy_fix_hours_per_finding: float = Form(default=8, ge=0, le=1000),
+    quantum_migration_hours_per_finding: float = Form(default=16, ge=0, le=1000),
+    crypto_review_hours_per_finding: float = Form(default=3, ge=0, le=1000),
+):
     try:
-        result = await scan_upload(file)
+        result = await scan_upload(file, {
+            "hourly_rate_usd": hourly_rate_usd,
+            "legacy_fix_hours_per_finding": legacy_fix_hours_per_finding,
+            "quantum_migration_hours_per_finding": quantum_migration_hours_per_finding,
+            "crypto_review_hours_per_finding": crypto_review_hours_per_finding,
+        })
         result["hash"] = result["sha256"]
         result["profile"] = result["report"]["project_profile"]
         result["assessment_status"] = result["report"]["classification"]

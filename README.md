@@ -17,8 +17,14 @@ Open `http://127.0.0.1:8000/`. Select either **Administrator** or **Accessor (re
 1. Open **Risk Analysis & Scanner** for a PDF project specification.
 2. Open **Cryptographic Scanner** for PDF, ZIP, configuration, certificate, SBOM, or CBOM content.
 3. Start the scan and review the report. Candidate algorithm matches include line evidence and a line hash. Suspected key material is redacted.
-4. Export the current scan as JSON or CSV. The PDF action opens the browser print dialog, where the report can be saved as PDF.
-5. Use **Policy Center** to create a project-scoped firewall policy draft. Drafts are not deployed to a network gateway.
+4. Review the risk dimensions and total USD engineering estimate. Rate and estimated hours per finding are editable before scanning; the displayed low/expected/high values are estimates, not quotes.
+5. For software ZIPs, review detected source files, languages, supported package manifests, dependency names, cryptographic references, and possible secret markers. The scan is static; it does not execute code or run builds.
+6. Export the full analysis as JSON, CSV, or a printable PDF.
+7. Use **Policy Center** to create a project-scoped firewall policy draft. Drafts are not deployed to a network gateway.
+
+The scanner offers **Load sample project PDF** and **Load sample software ZIP** buttons. These synthetic files contain no real credentials or customer data and are designed to demonstrate risk scoring, the cost estimate, static inventory, dependency names, and evidence exports.
+
+Cost estimates use a 2-hour baseline plus editable expected effort per distinct file/algorithm match (default blended labor rate USD 150/hour, with legacy crypto 8 hours, classical public-key migration 16 hours, and other crypto review 3 hours per finding). The range is 75%–150% of expected effort. Licenses, vendor costs, infrastructure, testing, compatibility, and deployment are excluded. Dependency names are inventory only; no vulnerability advisory feed is configured.
 
 The upload limit is 10 GiB per file. PDF analysis limits pages and extracted text. ZIP files are inspected in place without extracting or executing entries; their expanded scan scope is separately bounded. An installation should use a dedicated upload volume with storage quotas and a reverse-proxy body-size limit.
 
@@ -59,6 +65,8 @@ The retrieved crypto guidance is kept as controlled local content; it is not a s
 - `POST /api/v1/firewall/policies` and `GET /api/v1/firewall/policies/{policy_id}`
 - `POST /api/v1/firewall/events`
 - `GET /api/v1/demo/samples`
+- `GET /api/v1/demo/sample-files/project.pdf`
+- `GET /api/v1/demo/sample-files/software.zip`
 - `GET /api/v1/audit`
 - `WS /ws/events`
 
@@ -76,3 +84,5 @@ See [the demo technical report](./docs/PQC-Migrate-Demo-Technical-Report.pdf) fo
 ```powershell
 .\.venv\Scripts\python.exe scripts\generate_demo_report.py
 ```
+
+For a one-page overview of project tools and software, see [the tech-stack PDF](./docs/PQC-Migrate-Tech-Stack.pdf).
