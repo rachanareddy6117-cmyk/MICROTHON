@@ -1,137 +1,78 @@
-# PQC-Migrate 🛡️⚛️
-**Post-Quantum Cryptography (PQC) Static Analysis, Defensive Crypto Firewall & Agile Remediation Engine**
+# PQC-Migrate
 
-> [!WARNING]
-> **EPISTEMIC HUMILITY STATEMENT:**
-> Static cryptographic auditing does **NOT** constitute a proof of quantum security.
-> PQC-Migrate is engineered as a **static-analysis, dependency blast-radius mapping, defensive policy enforcement, and risk-communication platform**, not a live-defense guarantee. It audits static algorithm selection, configuration policies, and structural coupling without ever claiming a scan "proves" quantum safety.
+PQC-Migrate is an evidence-first post-quantum cryptography migration and crypto-agility platform prototype.
 
----
+## Run the local web demo
 
-## 🏛️ System Architecture
-
-```
-                  ┌────────────────────────────────────────────────────────┐
-                  │                  PQC-Migrate Platform                  │
-                  └───────────────────────────┬────────────────────────────┘
-                                              │
-    ┌───────────────────────────┬─────────────┴─────────────┬───────────────────────────┐
-    │                           │                           │                           │
-    ▼                           ▼                           ▼                           ▼
-┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
-│ Secure Ingestion │    │ Multi-Domain     │    │ 10-Agent         │    │ Defensive Crypto │
-│ Engine           │    │ Crypto Scanners  │    │ Orchestrator     │    │ Firewall Gateway │
-│ - PDF Spec Extr  │    │ - RSA/ECC/ECDSA  │    │ - DiscoveryAgent │    │ - Policy-as-Code │
-│ - Safe Unpack    │    │ - AES/3DES/RC4   │    │ - EvidenceAgent  │    │ - Decision Engine│
-│ - ZipBomb Shield │    │ - MD5/SHA-1/TLS  │    │ - RiskAgent      │    │ - ALLOW/WARN/    │
-│ - Sandboxed Git  │    │ - PQC (ML-KEM/   │    │ - PatchAgent     │    │   REVIEW/BLOCK   │
-│ - No-Execution   │    │   ML-DSA/SLH-DSA)│    │ - SandboxAgent   │    │ - WebSocket Hub  │
-└──────────────────┘    └──────────────────┘    └──────────────────┘    └──────────────────┘
+```powershell
+py -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 ```
 
-- **Backend Framework:** FastAPI with async execution
-- **Database:** PostgreSQL (with automatic async SQLite fallback for testing/local setups)
-- **Caching & Streaming:** Redis for task queueing & WebSocket telemetry broadcasting
-- **Remediation Sandbox:** Isolated container environments with automated rollback
-- **Data Protection:** Envelope Encryption via KMS/HSM abstraction with masked low-privilege views
+Open `http://127.0.0.1:8000/`. Select either **Administrator** or **Accessor (read-only)**. Administrator setup collects organization name, location, industry, security contact, initial project, and report cadence. In this prototype, the role and organization profile are stored only in browser local storage. These demo roles are not real authentication, and their UI permissions are not server authorization.
 
----
+## Current scanner workflow
 
-## 🚀 Key Modules & Capabilities
+1. Open **Risk Analysis & Scanner** for a PDF project specification.
+2. Open **Cryptographic Scanner** for PDF, ZIP, configuration, certificate, SBOM, or CBOM content.
+3. Start the scan and review the report. Candidate algorithm matches include line evidence and a line hash. Suspected key material is redacted.
+4. Export the current scan as JSON or CSV. The PDF action opens the browser print dialog, where the report can be saved as PDF.
+5. Use **Policy Center** to create a project-scoped firewall policy draft. Drafts are not deployed to a network gateway.
 
-### 1. Multi-Domain Cryptographic Scanner
-- Detects classical asymmetric primitives broken by Shor's algorithm: **RSA (all key sizes), ECC, ECDSA, ECDH, Diffie-Hellman**.
-- Detects Grover-vulnerable symmetric ciphers: **AES-128 (effective strength drops to ~64 bits), 3DES, DES, RC4**.
-- Detects classically broken hashes: **MD5, SHA-1**.
-- Recognizes standardized Post-Quantum Cryptography: **NIST FIPS 203 (ML-KEM), FIPS 204 (ML-DSA), FIPS 205 (SLH-DSA)**.
-- Audits configs: Nginx, Apache TLS cipher suites, OpenSSH `sshd_config`, Terraform KMS key specs, Dockerfiles.
-- Parses X.509 certificates and flags expirations crossing the **2030 CRQC Horizon**.
+The upload limit is 10 GiB per file. PDF analysis limits pages and extracted text. ZIP files are inspected in place without extracting or executing entries; their expanded scan scope is separately bounded. An installation should use a dedicated upload volume with storage quotas and a reverse-proxy body-size limit.
 
-### 2. 8-Tier Hierarchical Dependency Graph
-Constructs and visualizes the complete cryptographic blast radius:
-`Repository -> Service -> Package -> Library -> Crypto API -> Algorithm -> Certificate -> Protocol`
+## Docker Compose
 
-### 3. 10-Agent Autonomous Orchestrator
-Agents communicate through structured state (`AgentBlackboardState`) with full immutable logging:
-1. `DiscoveryAgent`: Discovers files, repos, services, configs, certs.
-2. `EvidenceAgent`: Collects code snippets, AST locations, and certificate attributes.
-3. `RiskAgent`: Evaluates Shor/Grover risk, Mosca theorem horizon, and HNDL index.
-4. `DependencyAgent`: Constructs graph hierarchy and computes blast radii.
-5. `MigrationAgent`: Synthesizes 4-phase NIST-aligned migration roadmap.
-6. `PatchAgent`: Synthesizes agile code diff patches.
-7. `SandboxAgent`: Validates patches in isolated test environments.
-8. `VerificationAgent`: Verifies build output, test suites, and regression rescans.
-9. `FirewallAgent`: Generates runtime policy recommendations.
-10. `GovernanceAgent`: Manages approvals and compliance gates.
+Set `POSTGRES_PASSWORD` in the shell or in an untracked `.env` file before starting the stack. Do not commit production credentials.
 
-### 4. Auto-Remediation & Sandbox Workflow
-`Finding -> Investigation -> Fix Proposal -> Patch -> Sandbox -> Tests -> Rescan -> Verification -> Approval -> Deployment -> Monitoring -> Rollback`
-- **Zero Automatic High-Risk Deployments:** Perimeter and TLS changes mandate manual Security Lead sign-off.
-- **Rollback Engine:** Immediate one-click rollback restoring verified snapshots.
-
-### 5. Defensive Crypto Policy Enforcement Firewall
-- Enforces Policy-as-Code (YAML/JSON) with versioning, rollback, and temporary exception management.
-- Evaluates handshakes and returns: `ALLOW`, `MONITOR`, `WARN`, `REVIEW`, `BLOCK`.
-- Detects TLS 1.0/1.1, broken ciphers, weak RSA keys (<2048), SHA-1 signatures, and downgrade sentinels.
-
-### 6. CI/CD Guard
-Endpoint `POST /api/v1/ci/scan`:
-- Analyzes newly committed pull requests or branches.
-- Returns status `PASS`, `REVIEW`, or `BLOCK` with precise line-number evidence and recommended NIST PQC replacements.
-
-### 7. Secure Data Module (Envelope Encryption)
-- Encrypts sensitive secrets using **AES-256-GCM**.
-- Data Encryption Keys (DEKs) wrapped by KMS Key Encryption Keys (KEKs).
-- Masked views for standard analysts (`Supe*****************2026`).
-- Decryption restricted exclusively to the `security_lead` role.
-
----
-
-## 🔌 API Group Endpoints (`/api/v1`)
-
-| Endpoint Group | Description |
-| :--- | :--- |
-| `/projects` | Manage projects and scan product specification PDFs |
-| `/repositories` | Secure Git clone & safe archive ingestion |
-| `/scans` | Trigger full 10-agent scans and retrieve state |
-| `/findings` | Filter and query cryptographic vulnerability findings |
-| `/crypto-assets` | Inventory of all discovered cryptographic components |
-| `/dependencies` | 8-tier dependency graph and blast radius calculations |
-| `/certificates` | X.509 certificate tracking and revocation records |
-| `/agents` | Agent execution step logs and state deltas |
-| `/investigations` | Finding investigation state tracking |
-| `/remediations` | Fix proposal generation, approval gates, and rollbacks |
-| `/sandbox` | Sandbox container runner status & validation metrics |
-| `/migrations` | 4-phase NIST FIPS 203/204/205 roadmap |
-| `/crypto-agility` | Cryptographic agility registry and provider factories |
-| `/firewall` | Handshake inspection, active policy, exceptions & telemetry |
-| `/ci` | CI/CD commit scanner (`POST /api/v1/ci/scan`) |
-| `/secure-data` | KMS envelope encryption vault & role-based decryption |
-| `/reports` | CycloneDX 1.6 CBOM JSON and executive reports |
-| `/audit` | Immutable audit trail for all sensitive operations |
-| `/evaluation` | Posture evaluation and crypto agility readiness index |
-| `/ws/events` | Real-time WebSocket event streaming |
-
----
-
-## 🧪 Testing & Adversarial Verification
-
-Run the full adversarial verification suite without requiring external production credentials:
-```bash
-python tests/test_pqc_migrate_all.py
-```
-Run the REST API endpoint test suite:
-```bash
-python tests/test_api_endpoints.py
+```powershell
+$env:POSTGRES_PASSWORD = "use-a-local-development-password"
+docker compose up --build
 ```
 
-### Starting the Server
-```bash
-python start_server.py
-```
-Open **http://localhost:8000/docs** for the interactive OpenAPI Swagger UI.
+The compose stack provides PostgreSQL and Redis containers, but the current demo API workflows still do not persist scan results or policy drafts to PostgreSQL.
 
-### Running with Docker Compose
-```bash
-docker-compose up --build
+## Evidence and model behavior
+
+The current upload scanner is deterministic: it parses bounded text, finds configured cryptographic patterns, and joins findings to the controlled, versioned recommendation table in `pqc_migrate/knowledge_repo.py`. Missing project fields remain unknown. Cost impact, performance, compliance conclusions, runtime reachability, and dependency blast radius are not inferred without measurement or supporting evidence.
+
+The existing `src/crypto_llm.py` is **not a trained generative LLM**. It loads the pretrained `all-MiniLM-L6-v2` SentenceTransformer to embed reference-document chunks, retrieves the nearest chunks with FAISS, and places the retrieved text into a fixed response template. It does not fine-tune or train model weights, and no generative LLM endpoint is configured for the new risk report. The local retrieval demo does not send the source PDF to a model service.
+
+The retrieved crypto guidance is kept as controlled local content; it is not a substitute for reviewed standards, organizational policy, or cryptographic expertise. All findings are assessments, not guarantees of quantum safety.
+
+## Sample data and organization data
+
+- Synthetic assets, findings, repository examples, and firewall events are seeded in a separate SQLite database at `backend/data/pqc_demo_samples.sqlite3`.
+- The **Sample Data** page reads only that database. Synthetic records are not displayed in the organization dashboard.
+- The database can be located elsewhere with `PQC_SAMPLE_DB_PATH`.
+- The product PostgreSQL schema and migrations are separate; this backend demo does not yet persist organization scans, onboarding profiles, or policies to PostgreSQL.
+
+## API surfaces available in this demo
+
+- `GET /health`
+- `POST /api/v1/scans/upload` (also available at `/api/v1/ingest`)
+- `POST /api/v1/projects/scan`
+- `POST /api/v1/deployments/report-issue`
+- `POST /api/v1/deployments/scan`
+- `POST /api/v1/ci/scan`
+- `POST /api/v1/firewall/policies` and `GET /api/v1/firewall/policies/{policy_id}`
+- `POST /api/v1/firewall/events`
+- `GET /api/v1/demo/samples`
+- `GET /api/v1/audit`
+- `WS /ws/events`
+
+GitHub/GitLab cloning, real OIDC/MFA and server-enforced RBAC, PostgreSQL persistence, KMS/HSM, shared cross-device organization profiles, background worker dispatch, sandbox container execution, Envoy/OPA deployment, and production CI webhooks require their respective integrations. Unsupported data views return empty, unknown, or explicit unavailable states rather than fabricated organization records.
+
+## Run tests
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+node --check frontend\app.js
+```
+
+See [the demo technical report](./docs/PQC-Migrate-Demo-Technical-Report.pdf) for the model explanation, security limits, seven-step validation results, and production integration checklist. Regenerate it with:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\generate_demo_report.py
 ```

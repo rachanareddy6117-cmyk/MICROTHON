@@ -1,0 +1,25 @@
+{
+  "crypto_assets": [
+    {"id":"SAMPLE-A01","algorithm":"RSA","library":"OpenSSL","version":"3.0.13","role":"TLS certificate","file":"examples/gateway/tls.py","line":84,"key_size":"2048","protocol":"TLS 1.2","service":"example-api","classification":"Quantum-vulnerable","confidence":96},
+    {"id":"SAMPLE-A02","algorithm":"ECDSA","library":"cryptography","version":"42.0","role":"JWT signing","file":"examples/auth/tokens.py","line":126,"key_size":"P-256","protocol":"OIDC","service":"example-identity","classification":"Quantum-vulnerable","confidence":94},
+    {"id":"SAMPLE-A03","algorithm":"AES-256-GCM","library":"BouncyCastle","version":"1.77","role":"Data encryption","file":"examples/crypto/Envelope.java","line":51,"key_size":"256","protocol":"Internal","service":"example-vault","classification":"Approved","confidence":99},
+    {"id":"SAMPLE-A04","algorithm":"SHA-1","library":"OpenSSL","version":"3.0.13","role":"Certificate signature","file":"examples/certs/legacy-chain.pem","line":1,"key_size":"2048","protocol":"TLS 1.2","service":"example-partner","classification":"Deprecated","confidence":98},
+    {"id":"SAMPLE-A05","algorithm":"ML-KEM-768","library":"liboqs","version":"0.12.0","role":"Key encapsulation","file":"examples/pqc/kem_provider.py","line":33,"key_size":"—","protocol":"Hybrid TLS","service":"example-pqc-edge","classification":"PQC candidate","confidence":91},
+    {"id":"SAMPLE-A06","algorithm":"3DES","library":"JCE","version":"17","role":"Legacy data decryption","file":"examples/batch/ImportJob.java","line":203,"key_size":"168","protocol":"Internal","service":"example-ledger","classification":"Deprecated","confidence":89}
+  ],
+  "findings": [
+    {"id":"SAMPLE-F01","title":"RSA-2048 certificate on example API gateway","algorithm":"RSA","severity":"Critical","service":"example-api","file":"examples/gateway/tls.py:84","confidence":"96%"},
+    {"id":"SAMPLE-F02","title":"SHA-1 signature in example certificate chain","algorithm":"SHA-1","severity":"Critical","service":"example-partner","file":"examples/certs/legacy-chain.pem:1","confidence":"98%"},
+    {"id":"SAMPLE-F03","title":"ECDSA signing key needs migration review","algorithm":"ECDSA","severity":"Medium","service":"example-identity","file":"examples/auth/tokens.py:126","confidence":"94%"}
+  ],
+  "firewall_events": [
+    {"time":"13:14:22","decision":"REVIEW","tls":"TLS 1.2","cipher":"ECDHE-RSA-AES128-GCM-SHA256","source":"203.0.113.24","destination":"api.example.invalid:443","service":"example-api","reason":"Below sample policy minimum; compatibility review required."},
+    {"time":"13:12:09","decision":"ALLOW","tls":"TLS 1.3","cipher":"TLS_AES_256_GCM_SHA384","source":"10.24.8.18","destination":"vault.example.invalid:443","service":"example-vault","reason":"Illustrative policy-compliant flow."},
+    {"time":"12:54:31","decision":"BLOCK","tls":"TLS 1.0","cipher":"DES-CBC3-SHA","source":"192.0.2.44","destination":"api.example.invalid:443","service":"example-api","reason":"Illustrative blocked protocol and cipher."}
+  ],
+  "repositories": [
+    {"name":"example-payments","provider":"GitHub","branch":"main","language":"Java, Python","findings":3},
+    {"name":"example-identity","provider":"GitLab","branch":"main","language":"Go, TypeScript","findings":2}
+  ],
+  "notice":"Synthetic demonstration-only records; not production data, not customer data, and not stored in the organization's PostgreSQL database."
+}
